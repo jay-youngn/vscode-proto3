@@ -96,18 +96,6 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
       }
     }
 
-    // Check if hovering over a field name
-    const fieldRegex = new RegExp(`^\\s*(optional|repeated|required)?\\s*(?:map\\s*<[^>]+>|\\w+(?:\\.(?:\\w+))*)\\s+(${targetWord})\\s*=\\s*\\d+`, 'i');
-    if (fieldRegex.test(lineText)) {
-      const messageInfo = await this.getContainingMessage(document, position.line);
-      if (messageInfo) {
-        const field = messageInfo.fields.find(f => f.name === targetWord);
-        if (field) {
-          return this.createHoverForField(field);
-        }
-      }
-    }
-
     // Check if hovering over an enum value
     const enumValueRegex = new RegExp(`^\\s*(${targetWord})\\s*=\\s*\\d+`, 'i');
     if (enumValueRegex.test(lineText)) {
@@ -410,7 +398,7 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
         } else {
           // Try to match enum value with optional inline comment
           // Use trimmedLine to avoid issues with CRLF line endings
-          const valueMatch = trimmedLine.match(/^\s*(\w+)\s*=\s*(\d+)(?:\s*;\s*\/\/\s*(.*))?$/);
+          const valueMatch = trimmedLine.match(/^\s*(\w+)\s*=\s*(\d+)\s*;(?:\s*\/\/\s*(.*))?$/);
           if (valueMatch) {
             const [, name, number, inlineComment] = valueMatch;
 
@@ -457,10 +445,11 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
           const label = field.label ? `${field.label} ` : '';
           if (field.comment) {
             // Convert multi-line comments to proper markdown format
+            // Use space for replace line breaks in HTML span to keep it inside the comment block
             const formattedComment = field.comment.includes('\n')
-              ? `*\n${field.comment.split('\n').map(line => `  * ${line}`).join('\n')}\n  *`
+              ? field.comment.split('\n').filter(line => line.trim()).join(' ')
               : field.comment;
-            md.appendMarkdown(`- \`${field.name}: ${label}${field.type}\` = ${field.number}; <span style="opacity:0.7">*// ${formattedComment}*</span>\n`);
+            md.appendMarkdown(`- \`${field.name}: ${label}${field.type}\` = ${field.number}; *// ${formattedComment}*\n`);
           } else {
             md.appendMarkdown(`- \`${field.name}: ${label}${field.type}\` = ${field.number};\n`);
           }
@@ -493,29 +482,16 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
         for (const value of info.values) {
           if (value.comment) {
             // Convert multi-line comments to proper markdown format
+            // Use space for replace line breaks in HTML span to keep it inside the comment block
             const formattedComment = value.comment.includes('\n')
-              ? `*\n${value.comment.split('\n').map(line => `  * ${line}`).join('\n')}\n  *`
+              ? value.comment.split('\n').filter(line => line.trim()).join(' ')
               : value.comment;
-            md.appendMarkdown(`- \`${value.name}\` = ${value.number}; <span style="opacity:0.7">*// ${formattedComment}*</span>\n`);
+            md.appendMarkdown(`- \`${value.name}\` = ${value.number}; *// ${formattedComment}*\n`);
           } else {
             md.appendMarkdown(`- \`${value.name}\` = ${value.number};\n`);
           }
         }
       }
-    }
-
-    return new vscode.Hover(md);
-  }
-
-  private createHoverForField(field: FieldInfo): vscode.Hover {
-    const md = new vscode.MarkdownString();
-    md.isTrusted = true;
-    const label = field.label ? `${field.label} ` : '';
-
-    md.appendMarkdown(`\`${label}${field.type} ${field.name}\` = ${field.number}`);
-
-    if (field.comment) {
-      md.appendMarkdown(` <span style="opacity:0.7">*// ${field.comment}*</span>`);
     }
 
     return new vscode.Hover(md);
@@ -527,7 +503,7 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
 
     md.appendMarkdown(`\`${enumValue.name}\` = ${enumValue.number}`);
     if (enumValue.comment) {
-      md.appendMarkdown(` <span style="opacity:0.7">*// ${enumValue.comment}*</span>`);
+      md.appendMarkdown(` *// ${enumValue.comment}*`);
     }
     md.appendMarkdown('\n\n');
     md.appendMarkdown(`Enum: \`${enumInfo.name}\``);
