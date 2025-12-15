@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package test;
+
+// Import statement test
+import "google/protobuf/timestamp.proto";
+
+// This is a test message
+// It demonstrates hover functionality
+message User {
+  // Unique identifier for the user
+  int64 id = 1;
+
+  // User's full name
+  string name = 2;
+
+  // User's email address
+  string email = 3;
+
+  // User's age in years
+  int32 age = 4;
+
+  // Whether the user is active
+  bool active = 5;
+
+  // User's status
+  UserStatus status = 6;
+
+  // Last login time
+  google.protobuf.Timestamp last_login = 7;
+
+  // List of user roles
+  repeated string roles = 8;
+
+  // Optional profile image
+  optional bytes profile_image = 9;
+
+  // Map of custom properties
+  map<string, string> properties = 10;
+}
+
+// Enum for user status
+enum UserStatus {
+  // User is not active
+  INACTIVE = 0;
+
+  // User is active
+  ACTIVE = 1;
+
+  // User is suspended
+  SUSPENDED = 2;
+
+  // User is pending verification
+  PENDING = 3;
+}
+
+// Nested message test
+message Company {
+  string name = 1;
+
+  // Nested user within company
+  message Employee {
+    int64 employee_id = 1;
+    User user_info = 2;
+  }
+
+  repeated Employee employees = 2;
+}
+
+// Service definition
+message GetUserRequest {
+  int64 user_id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+service UserService {
+  // Get a user by ID
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+
+  // List all users
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+}
+
+message ListUsersRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+  string next_page_token = 2;
+}

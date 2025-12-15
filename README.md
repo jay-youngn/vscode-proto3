@@ -1,12 +1,17 @@
-# vscode-proto3
-
-![icon](images/vscode_extension_icon.png)
+# vscode-proto3-next
 
 > Salute to the long-standing [zxh0/vscode-proto3](https://github.com/zxh0/vscode-proto3) extension that has accompanied us for so long.
 
 Protobuf 3 support for Visual Studio Code
 
 This is an excellent and concise extension in VSCode, and it is well worth our continuous effort to make small optimizations.
+
+## New Features
+
+- Support for retrieving all proto paths from configuration for imports, go to definition.
+- Support for previewing proto definitions on hover.
+
+-----
 
 ## VSCode Commands
 
