@@ -22,13 +22,15 @@ export enum Proto3ScopeKind {
 export class Proto3Scope {
   syntax: number = 2; // 2 or 3
   kind: Proto3ScopeKind;
+  name: string;
   parent: Proto3Scope | null = null;
   children: Proto3Scope[];
   lineFrom: number;
   lineTo: number = 0;
 
-  constructor(kind: Proto3ScopeKind, lineFrom: number) {
+  constructor(kind: Proto3ScopeKind, name: string, lineFrom: number) {
     this.kind = kind;
+    this.name = name;
     this.children = [];
     this.lineFrom = lineFrom;
   }
@@ -50,7 +52,7 @@ class ScopeGuesser {
   }
 
   guess(doc: vscode.TextDocument): Proto3Scope {
-    this.enterScope(Proto3ScopeKind.Proto, 0);
+    this.enterScope(Proto3ScopeKind.Proto, '', 0);
     for (let i = 0; i < doc.lineCount; i++) {
       const line = doc.lineAt(i);
       if (!line.isEmptyOrWhitespace) {
@@ -60,19 +62,28 @@ class ScopeGuesser {
             this.exitScope(i); // exit block comment
           }
         } else if (lineText.match(/^\s*\/\*.*/)) {
-          this.enterScope(Proto3ScopeKind.Comment, i); // enter block comment
+          this.enterScope(Proto3ScopeKind.Comment, '', i); // enter block comment
         } else if (lineText.match(/^\s*\/\//)) {
           continue; // skip line comments
         } else if (lineText.match(/^\s*syntax\s*=\s*"proto3"\s*;/)) {
           this.syntax = 3;
-        } else if (lineText.match(MSG_BEGIN)) {
-          this.enterScope(Proto3ScopeKind.Message, i);
-        } else if (lineText.match(ENUM_BEGIN)) {
-          this.enterScope(Proto3ScopeKind.Enum, i);
-        } else if (lineText.match(SERVICE_BEGIN)) {
-          this.enterScope(Proto3ScopeKind.Service, i);
-        } else if (lineText.match(SCOPE_END)) {
-          this.exitScope(i);
+        } else {
+          const msgMatch = lineText.match(MSG_BEGIN);
+          if (msgMatch) {
+            this.enterScope(Proto3ScopeKind.Message, msgMatch[1], i);
+          } else {
+            const enumMatch = lineText.match(ENUM_BEGIN);
+            if (enumMatch) {
+              this.enterScope(Proto3ScopeKind.Enum, enumMatch[1], i);
+            } else {
+              const serviceMatch = lineText.match(SERVICE_BEGIN);
+              if (serviceMatch) {
+                this.enterScope(Proto3ScopeKind.Service, serviceMatch[1], i);
+              } else if (lineText.match(SCOPE_END)) {
+                this.exitScope(i);
+              }
+            }
+          }
         }
       }
     }
@@ -82,14 +93,14 @@ class ScopeGuesser {
       return this.scopeAtCursor;
     }
     // Fallback: return a Proto scope if cursor wasn't inside any specific scope
-    const fallbackScope = new Proto3Scope(Proto3ScopeKind.Proto, 0);
+    const fallbackScope = new Proto3Scope(Proto3ScopeKind.Proto, '', 0);
     fallbackScope.lineTo = doc.lineCount;
     fallbackScope.syntax = this.syntax;
     return fallbackScope;
   }
 
-  private enterScope(kind: Proto3ScopeKind, lineNum: number) {
-    const newScope = new Proto3Scope(kind, lineNum);
+  private enterScope(kind: Proto3ScopeKind, name: string, lineNum: number) {
+    const newScope = new Proto3Scope(kind, name, lineNum);
     if (this.currentScope) {
       this.currentScope.addChild(newScope);
     }

@@ -19,8 +19,16 @@ export class Proto3DefinitionProvider implements vscode.DefinitionProvider {
       return undefined;
     }
 
-    const targetRange = document.getWordRangeAtPosition(position) as vscode.Range;
-    const targetDefinition = document.getText(targetRange);
+    const targetRange = document.getWordRangeAtPosition(position, /[\w.]+/);
+    const targetDefinition = targetRange
+      ? document.getText(targetRange)
+      : document.getWordRangeAtPosition(position)
+      ? document.getText(document.getWordRangeAtPosition(position)!)
+      : '';
+
+    if (!targetDefinition) {
+      return undefined;
+    }
 
     if (Proto3Primitive.isTypePrimitive(targetDefinition)) {
       return undefined;
@@ -98,24 +106,121 @@ export class Proto3DefinitionProvider implements vscode.DefinitionProvider {
     for (const file of uniqueFiles) {
       const data = fs.readFileSync(file.toString());
       const lines = data.toString().split('\n');
-      for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-        const line = lines[lineIndex];
-        const messageDefinitionRegexMatch = new RegExp(`\\s*(message|enum)\\s*${target}\\s*{`).exec(
-          line
-        );
-        if (messageDefinitionRegexMatch && messageDefinitionRegexMatch.length) {
-          const uri = vscode.Uri.file(file.toString());
-          const range = this.getTargetLocationInline(
-            lineIndex,
-            line,
-            target,
-            messageDefinitionRegexMatch
+
+      let packageName = '';
+      for (const line of lines) {
+        const packageMatch = line.match(/^\s*package\s+([\w.]+)\s*;/);
+        if (packageMatch) {
+          packageName = packageMatch[1];
+          break;
+        }
+      }
+
+      if (target.includes('.')) {
+        let parts = target.split('.');
+        if (packageName && target.startsWith(packageName + '.')) {
+          const packageParts = packageName.split('.');
+          let match = true;
+          for (let i = 0; i < packageParts.length; i++) {
+            if (parts[i] !== packageParts[i]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) {
+            parts = parts.slice(packageParts.length);
+          }
+        }
+
+        const location = this.findNestedDefinition(lines, parts, file.toString());
+        if (location) {
+          return location;
+        }
+      } else {
+        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+          const line = lines[lineIndex];
+          const messageDefinitionRegexMatch = new RegExp(`\\s*(message|enum)\\s*${target}\\s*{`).exec(
+            line
           );
-          return new vscode.Location(uri, range);
+          if (messageDefinitionRegexMatch && messageDefinitionRegexMatch.length) {
+            const uri = vscode.Uri.file(file.toString());
+            const range = this.getTargetLocationInline(
+              lineIndex,
+              line,
+              target,
+              messageDefinitionRegexMatch
+            );
+            return new vscode.Location(uri, range);
+          }
         }
       }
     }
     return undefined;
+  }
+
+  private findNestedDefinition(
+    lines: string[],
+    parts: string[],
+    filePath: string,
+    startLine: number = 0,
+    endLine: number = -1
+  ): vscode.Location | undefined {
+    if (endLine === -1) {
+      endLine = lines.length;
+    }
+    if (parts.length === 0) {
+      return undefined;
+    }
+    const currentPart = parts[0];
+    const remainingParts = parts.slice(1);
+
+    for (let i = startLine; i < endLine; i++) {
+      const line = lines[i];
+      if (line.trim().startsWith('//')) {
+        continue;
+      }
+
+      const definitionRegex = new RegExp(`\\s*(message|enum|service)\\s+${currentPart}\\s*\\{`);
+      const match = definitionRegex.exec(line);
+
+      if (match) {
+        if (remainingParts.length === 0) {
+          const uri = vscode.Uri.file(filePath);
+          const range = this.getTargetLocationInline(i, line, currentPart, match);
+          return new vscode.Location(uri, range);
+        } else {
+          const blockEnd = this.findBlockEnd(lines, i);
+          const actualEnd = Math.min(blockEnd, endLine);
+          const innerLocation = this.findNestedDefinition(
+            lines,
+            remainingParts,
+            filePath,
+            i + 1,
+            actualEnd
+          );
+          if (innerLocation) {
+            return innerLocation;
+          }
+          i = blockEnd;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  private findBlockEnd(lines: string[], startLine: number): number {
+    let braceCount = 0;
+    for (let i = startLine; i < lines.length; i++) {
+      const line = lines[i];
+      const cleanLine = line.replace(/\/\/.*$/, '').replace(/\/\*.*\*\//, '');
+      const open = (cleanLine.match(/{/g) || []).length;
+      const close = (cleanLine.match(/}/g) || []).length;
+      braceCount += open - close;
+      if (braceCount <= 0 && i >= startLine) {
+        return i;
+      }
+    }
+    return lines.length;
   }
 
   private async findImportDefinition(importFileName: string): Promise<vscode.Location | undefined> {

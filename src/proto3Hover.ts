@@ -4,7 +4,7 @@ import fs = require('fs');
 import path = require('path');
 import vscode = require('vscode');
 import fg = require('fast-glob');
-import { guessScope, Proto3ScopeKind } from './proto3ScopeGuesser';
+import { guessScope, Proto3ScopeKind, Proto3Scope } from './proto3ScopeGuesser';
 import { Proto3Import } from './proto3Import';
 import { Proto3Primitive } from './proto3Primitive';
 
@@ -49,11 +49,28 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
       return undefined;
     }
 
-    const targetRange = document.getWordRangeAtPosition(position) as vscode.Range;
+    const targetRange = document.getWordRangeAtPosition(position, /[\w.]+/) as vscode.Range;
     const targetWord = document.getText(targetRange);
 
     if (!targetWord) {
       return undefined;
+    }
+
+    // Check if we are hovering over the definition of the current scope
+    if ((scope.kind === Proto3ScopeKind.Message || scope.kind === Proto3ScopeKind.Enum) && scope.name === targetWord) {
+      let fullName = scope.name;
+      let parent = scope.parent;
+      while (parent && parent.kind !== Proto3ScopeKind.Proto) {
+        if (parent.name) {
+          fullName = `${parent.name}.${fullName}`;
+        }
+        parent = parent.parent;
+      }
+
+      const info = await this.getMessageOrEnumInfo(document, fullName);
+      if (info) {
+        return this.createHoverForType(info);
+      }
     }
 
     const lineText = document.lineAt(position).text;
@@ -89,7 +106,9 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
     for (const context of contexts) {
       const regex = new RegExp(context, 'i');
       if (regex.test(lineText)) {
-        const info = await this.getMessageOrEnumInfo(document, targetWord);
+        const fullPath = this.resolveTypePath(scope, targetWord);
+        const searchName = fullPath || targetWord;
+        const info = await this.getMessageOrEnumInfo(document, searchName);
         if (info) {
           return this.createHoverForType(info);
         }
@@ -186,6 +205,38 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
     return undefined;
   }
 
+  private resolveTypePath(scope: Proto3Scope, targetName: string): string | undefined {
+    const parts = targetName.split('.');
+    const firstPart = parts[0];
+
+    let current: Proto3Scope | null = scope;
+    while (current) {
+      const found = current.children.find(child =>
+        (child.kind === Proto3ScopeKind.Message || child.kind === Proto3ScopeKind.Enum) &&
+        child.name === firstPart
+      );
+
+      if (found) {
+        const pathParts: string[] = [];
+        let iter: Proto3Scope | null = current;
+        while (iter && iter.kind !== Proto3ScopeKind.Proto) {
+          if (iter.name) {
+            pathParts.unshift(iter.name);
+          }
+          iter = iter.parent;
+        }
+        // If the target name was already qualified (e.g. Sub.Message), we need to append the whole thing
+        // But we found 'Sub' in 'current'.
+        // So the full path is path_to_current + targetName.
+        pathParts.push(targetName);
+        return pathParts.join('.');
+      }
+
+      current = current.parent;
+    }
+    return undefined;
+  }
+
   private async getMessageOrEnumInfo(document: vscode.TextDocument, targetName: string): Promise<MessageInfo | EnumInfo | undefined> {
     const searchPaths = Proto3Import.getImportedFilePathsOnDocument(document);
     const files = [document.uri.fsPath, ...(await fg(searchPaths))];
@@ -203,9 +254,26 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
 
     const uniqueFiles = Array.from(new Set(files));
 
+    // Handle dot-separated paths
+    const parts = targetName.split('.');
+    const rootName = parts[0];
+
     for (const file of uniqueFiles) {
       try {
         const content = fs.readFileSync(file, 'utf-8');
+
+        // Extract package name from the file
+        const packageMatch = content.match(/package\s+([^;]+);/);
+        const packageName = packageMatch ? packageMatch[1] : '';
+
+        let matchParts = parts;
+        let matchRoot = rootName;
+
+        if (packageName && targetName.startsWith(packageName + '.')) {
+          const relativeName = targetName.substring(packageName.length + 1);
+          matchParts = relativeName.split('.');
+          matchRoot = matchParts[0];
+        }
 
         // Look for message or enum definition
         const messageMatch = content.match(/\bmessage\s+(\w+)\s*{/g);
@@ -215,18 +283,64 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
         if (messageMatch) {
           for (const match of messageMatch) {
             const name = match.match(/message\s+(\w+)\s*{/);
-            if (name && name[1] === targetName) {
-              return await this.parseMessage(targetName, content);
+            if (name && name[1]) {
+              const messageName = name[1];
+              const fullName = packageName ? `${packageName}.${messageName}` : messageName;
+
+              // Check if this matches our target (either by simple name or full qualified name)
+              if (messageName === matchRoot || fullName === targetName || fullName === matchRoot) {
+                let info: MessageInfo | EnumInfo = await this.parseMessage(messageName, content);
+
+                // If we matched by package.MessageName and have no more parts, return immediately
+                if (fullName === targetName) {
+                  return info;
+                }
+
+                // Traverse if there are more parts (for nested types like Message.NestedMessage)
+                if (matchParts.length > 1 && messageName === matchRoot) {
+                  let found = true;
+                  for (let i = 1; i < matchParts.length; i++) {
+                    const nextName = matchParts[i];
+                    if ('nestedMessages' in info) { // It's a message
+                      const nestedMsg: MessageInfo | undefined = info.nestedMessages.find(m => m.name === nextName);
+                      if (nestedMsg) {
+                        // Create a copy with full name
+                        info = { ...nestedMsg, name: `${info.name}.${nestedMsg.name}` };
+                        continue;
+                      }
+                      const nestedEnum: EnumInfo | undefined = info.nestedEnums.find(e => e.name === nextName);
+                      if (nestedEnum) {
+                        // Create a copy with full name
+                        info = { ...nestedEnum, name: `${info.name}.${nestedEnum.name}` };
+                        continue;
+                      }
+                    }
+                    found = false;
+                    break;
+                  }
+                  if (found) {
+                    return info;
+                  }
+                } else if (messageName === matchRoot && matchParts.length === 1) {
+                  return info;
+                }
+              }
             }
           }
         }
 
-        // Check for enum
+        // Check for enum (only if it's a root enum)
         if (enumMatch) {
           for (const match of enumMatch) {
             const name = match.match(/enum\s+(\w+)\s*{/);
-            if (name && name[1] === targetName) {
-              return await this.parseEnum(targetName, content);
+            if (name && name[1]) {
+              const enumName = name[1];
+              const fullName = packageName ? `${packageName}.${enumName}` : enumName;
+
+              // Check if this matches our target (either by simple name or full qualified name)
+              if ((enumName === matchRoot || fullName === targetName || fullName === matchRoot) && matchParts.length === 1) {
+                return await this.parseEnum(enumName, content);
+              }
             }
           }
         }
@@ -309,39 +423,55 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
             pendingComments = [];
           }
         } else if (braceDepth === 0) {
-          // Only parse fields at the top level (depth 0)
-          // Try to match field with optional label and comment
-          // This regex matches: [label] map<key, value>|type name = number [options] ; // comment
-          // Use trimmedLine to avoid issues with CRLF line endings
-          const fieldMatch = trimmedLine.match(/^\s*(optional|required|repeated)?\s*(?:(map)\s*<\s*([^<>]+)\s*,\s*([^<>]+)\s*>|(\w+(?:\.\w+)*))\s+(\w+)\s*=\s*(\d+)(?:\s*\[([\s\w=,]+)\])?\s*;(?:\s*\/\/\s*(.*))?$/);
-          if (fieldMatch) {
-            const [, label, mapKeyword, mapKey, mapValue, regularType, name, number, options, inlineComment] = fieldMatch;
-            let type: string;
-            if (mapKeyword && mapKey && mapValue) {
-              type = `map<${mapKey}, ${mapValue}>`;
-            } else {
-              type = regularType || '';
-            }
+          // Check for nested message
+          const nestedMessageMatch = trimmedLine.match(/^message\s+(\w+)\s*\{/);
+          const nestedEnumMatch = trimmedLine.match(/^enum\s+(\w+)\s*\{/);
 
-            // Combine pending comments (from preceding lines) with inline comment
-            const allComments = [...pendingComments];
-            if (inlineComment) {
-              allComments.push(inlineComment.trim());
-            }
-
-            message.fields.push({
-              name,
-              type,
-              number: parseInt(number),
-              label: label || undefined,
-              comment: allComments.length > 0 ? allComments.join('\n') : undefined
-            });
-
-            // Reset pending comments after using them
+          if (nestedMessageMatch) {
+            const nestedName = nestedMessageMatch[1];
+            const nestedInfo = await this.parseMessage(nestedName, bodyContent);
+            message.nestedMessages.push(nestedInfo);
+            pendingComments = [];
+          } else if (nestedEnumMatch) {
+            const nestedName = nestedEnumMatch[1];
+            const nestedInfo = await this.parseEnum(nestedName, bodyContent);
+            message.nestedEnums.push(nestedInfo);
             pendingComments = [];
           } else {
-            // Reset comments if the line doesn't contain a field
-            pendingComments = [];
+            // Only parse fields at the top level (depth 0)
+            // Try to match field with optional label and comment
+            // This regex matches: [label] map<key, value>|type name = number [options] ; // comment
+            // Use trimmedLine to avoid issues with CRLF line endings
+            const fieldMatch = trimmedLine.match(/^\s*(optional|required|repeated)?\s*(?:(map)\s*<\s*([^<>]+)\s*,\s*([^<>]+)\s*>|(\w+(?:\.\w+)*))\s+(\w+)\s*=\s*(\d+)(?:\s*\[([\s\w=,]+)\])?\s*;(?:\s*\/\/\s*(.*))?$/);
+            if (fieldMatch) {
+              const [, label, mapKeyword, mapKey, mapValue, regularType, name, number, options, inlineComment] = fieldMatch;
+              let type: string;
+              if (mapKeyword && mapKey && mapValue) {
+                type = `map<${mapKey}, ${mapValue}>`;
+              } else {
+                type = regularType || '';
+              }
+
+              // Combine pending comments (from preceding lines) with inline comment
+              const allComments = [...pendingComments];
+              if (inlineComment) {
+                allComments.push(inlineComment.trim());
+              }
+
+              message.fields.push({
+                name,
+                type,
+                number: parseInt(number),
+                label: label || undefined,
+                comment: allComments.length > 0 ? allComments.join('\n') : undefined
+              });
+
+              // Reset pending comments after using them
+              pendingComments = [];
+            } else {
+              // Reset comments if the line doesn't contain a field
+              pendingComments = [];
+            }
           }
         }
 
@@ -459,14 +589,16 @@ export class Proto3HoverProvider implements vscode.HoverProvider {
       if (info.nestedMessages.length > 0) {
         md.appendMarkdown('\n**Nested Messages:**\n');
         for (const nested of info.nestedMessages) {
-          md.appendMarkdown(`- \`${nested.name}\`\n`);
+          const nestedComment = nested.comment ? ` *// ${nested.comment}*` : '';
+          md.appendMarkdown(`- \`${nested.name}\`${nestedComment}\n`);
         }
       }
 
       if (info.nestedEnums.length > 0) {
         md.appendMarkdown('\n**Nested Enums:**\n');
         for (const nested of info.nestedEnums) {
-          md.appendMarkdown(`- \`${nested.name}\`\n`);
+          const nestedComment = nested.comment ? ` *// ${nested.comment}*` : '';
+          md.appendMarkdown(`- \`${nested.name}\`${nestedComment}\n`);
         }
       }
     } else {
