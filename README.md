@@ -21,11 +21,11 @@ This extension extends the original functionality with significant improvements:
 
 ## 📚 Release Notes
 
-See [CHANGELOG.md](CHANGELOG.md).
+See [CHANGELOG.md](CHANGELOG.md)
 
 -----
 
-## ⚠️ vscode-proto3 (Archived)
+## 🧩 Original Features (Inherited from vscode-proto3)
 
 ### VSCode Commands
 
