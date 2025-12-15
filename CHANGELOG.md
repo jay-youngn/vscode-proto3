@@ -1,40 +1,12 @@
 # Release Notes
 
-## 0.5.7 (Unreleased)
+## 1.0.1
 
-### Bug Fixes
+- The `protoc.renumber_on_save` setting is now `false` by default to avoid unexpected changes to proto files.
 
-- Fixed syntax highlighting for negative enum values (issue #168)
-- Fixed syntax highlighting for fully-qualified type names with leading dot (issue #167)
-- Fixed "Go to Definition" not working with `optional` keyword (issue #180)
-- Added `clang-format.style` and `clang-format.executable` to configuration schema (issue #152)
-- Added `compile_on_save` to configuration schema
+## 1.0.0
 
-### Enhancements
-
-- Enhanced DocumentSymbolProvider to show hierarchical outline (issue #166)
-  - Messages now show nested fields, enums, and nested messages
-  - Enums now show their values as children
-  - Services now show RPC methods as children
-  - Fields show their type in the detail field
-- Added support for `optional`, `repeated`, `required` fields in symbol outline
-- Added support for `map` and `oneof` fields in symbol outline
-
-### Development Infrastructure
-
-- Modernized build tooling and dependencies
-  - Updated TypeScript to 5.7 with strict mode enabled
-  - Updated ESLint to 9.x with flat config format
-  - Updated Mocha to 11.x and added c8 for coverage reporting
-  - Updated Prettier to 3.4 with best practices config
-  - Added `npm run verify` for local lint/format/test without hook tooling
-- Added GitHub Actions CI workflow
-  - Runs on Node.js 18.x, 20.x, and 22.x
-  - Includes formatting, linting, build, and test checks
-  - Uploads coverage reports to Codecov
-- Added markdownlint for markdown file linting
-- Expanded test suite from 5 to 119 tests (~95% coverage on core modules)
-- Added badges to README (CI status, coverage, marketplace)
+- Add support for retrieving all proto paths from configuration for imports.
 
 ## 0.5.6
 
