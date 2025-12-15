@@ -24,34 +24,58 @@ message User {
   bool active = 5;
 
   // User's status
-  UserStatus status = 6;
+  UserStatus.Enum status = 6;
+
+  // User group
+  test.UserGroup.Enum group = 7;
 
   // Last login time
-  google.protobuf.Timestamp last_login = 7;
+  google.protobuf.Timestamp last_login = 8;
 
   // List of user roles
-  repeated string roles = 8;
+  repeated string roles = 9;
 
   // Optional profile image
-  optional bytes profile_image = 9;
+  optional bytes profile_image = 10;
 
   // Map of custom properties
-  map<string, string> properties = 10;
+  map<string, string> properties = 11;
+
+  // Employee reference test
+  Company.Employee employer = 12;
 }
 
-// Enum for user status
-enum UserStatus {
-  // User is not active
-  INACTIVE = 0;
+// User status enum structure
+message UserStatus {
+  // Enum for user status
+  enum Enum {
+    // User is not active
+    INACTIVE = 0;
 
-  // User is active
-  ACTIVE = 1;
+    // User is active
+    ACTIVE = 1;
 
-  // User is suspended
-  SUSPENDED = 2;
+    // User is suspended
+    SUSPENDED = 2;
 
-  // User is pending verification
-  PENDING = 3;
+    // User is pending verification
+    PENDING = 3;
+  }
+}
+
+// User group enum structure
+message UserGroup {
+  // Enum for user group
+  enum Enum {
+    // Regular user group
+    REGULAR = 0;
+
+    // Admin user group
+    ADMIN = 1;
+
+    // Guest user group
+    GUEST = 2;
+  }
 }
 
 // Nested message test
@@ -62,6 +86,15 @@ message Company {
   message Employee {
     int64 employee_id = 1;
     User user_info = 2;
+    message Foo {
+      string foo = 1;
+      message Bar {
+        string bar = 1;
+      }
+
+      repeated Bar bars = 2;
+    }
+    Foo foo_info = 3;
   }
 
   repeated Employee employees = 2;

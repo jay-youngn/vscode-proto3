@@ -1,5 +1,9 @@
 # Release Notes
 
+## 1.0.2 ~ 1.0.3
+
+- Add support for previewing proto definitions on hover.
+
 ## 1.0.1
 
 - The `protoc.renumber_on_save` setting is now `false` by default to avoid unexpected changes to proto files.

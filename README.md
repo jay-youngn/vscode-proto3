@@ -1,19 +1,33 @@
 # vscode-proto3-next
 
-> Salute to the long-standing [zxh0/vscode-proto3](https://github.com/zxh0/vscode-proto3) extension that has accompanied us for so long.
+[![Version](https://img.shields.io/visual-studio-marketplace/v/jay-youngn.vscode-proto3-next?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=jay-youngn.vscode-proto3-next)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/jay-youngn.vscode-proto3-next)](https://marketplace.visualstudio.com/items?itemName=jay-youngn.vscode-proto3-next)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/jay-youngn/vscode-proto3/blob/master/LICENSE.txt)
 
 Protobuf 3 support for Visual Studio Code
 
-This is an excellent and concise extension in VSCode, and it is well worth our continuous effort to make small optimizations.
+> Salute to the long-standing [zxh0/vscode-proto3](https://github.com/zxh0/vscode-proto3) extension that has accompanied us for so long. <br>
+> This is an excellent and concise extension in VSCode, and it is well worth our continuous effort to make small optimizations.
 
-## New Features
+## ✨ New Features
 
-- Support for retrieving all proto paths from configuration for imports, go to definition.
-- Support for previewing proto definitions on hover.
+This extension extends the original functionality with significant improvements:
+
+- **Enhanced Import Resolution**: Automatically resolves imports using paths defined in `protoc.options`, enabling reliable "Go to Definition" across your workspace.
+- **Rich Hover Support**:
+  - **Definition Preview**: Hover over message or enum types to view their complete definition, including fields and numbers.
+  - **Nested Structures**: Full support for visualizing nested messages and enums.
+  - **Formatted Documentation**: Comments are beautifully formatted, preserving multi-line structures.
+
+## 📚 Release Notes
+
+See [CHANGELOG.md](CHANGELOG.md).
 
 -----
 
-## VSCode Commands
+## ⚠️ vscode-proto3 (Archived)
+
+### VSCode Commands
 
 _By default **ctrl-shift-p** opens the command prompt._
 
@@ -22,33 +36,31 @@ _By default **ctrl-shift-p** opens the command prompt._
 | `proto3: Compile All Protos` | Compiles all workspace protos using [configurations](#extension-settings) defined with `protoc.options`. |
 | `proto3: Compile This Proto` | Compiles the active proto using [configurations](#extension-settings) defined with `protoc.options`. |
 
-## Features
+### Features
 
-- syntax highlighting.
-- syntax validation.
-- code snippets.
-- code completion.
-- code formatting.
-- brace matching.
-- line and block commenting.
-- compilation.
+- Syntax highlighting
+- Syntax validation
+- Code snippets
+- Code completion
+- Code formatting
+- Brace matching
+- Line and block commenting
+- Compilation
 
-![gif1](images/gif1.gif)
-
-### Syntax Highlighting
+#### Syntax Highlighting
 
 The grammar is written in tmLanguage JSON format.
 
-### Syntax Validation
+#### Syntax Validation
 
 The validation is triggered when you save the proto file. You need protoc
 compiler to enable syntax validation. You also need a settings.json file
 to tell the extension the full path of protoc if it is not in `path`.
 
-### Extension Settings
+#### Extension Settings
 
 Below is an example settings.json file which comes from
-[example/.vscode](https://github.com/zxh0/vscode-proto3/tree/master/example/.vscode):
+[example/.vscode](https://github.com/jay-youngn/vscode-proto3/tree/master/example/.vscode):
 ```json
 {
     "protoc": {
@@ -65,7 +77,7 @@ Below is an example settings.json file which comes from
 }
 ```
 
-#### Fields
+##### Fields
 
 The possible fields under the `protoc` extension settings which can be defined in a `settings.json` file.
 
@@ -78,7 +90,7 @@ The possible fields under the `protoc` extension settings which can be defined i
 | options          | string[] | []               | protoc compiler arguments/flags, required for proto validation and compilation |
 
 
-#### In-Line Variables
+##### In-Line Variables
 
 These variables can be used to inject variables strings within the `protoc` extension configurations. See above for examples.
 
@@ -88,11 +100,11 @@ These variables can be used to inject variables strings within the `protoc` exte
 | env.*         | Refer environment variable.              |
 | workspaceRoot | Returns current workspace root path.     |
 
-### Code Completion
+#### Code Completion
 
 A very simple parser is written to support code completion.
 
-### Code Snippets
+#### Code Snippets
 
 | prefix | body                                           |
 | ------ | ---------------------------------------------- |
@@ -129,7 +141,7 @@ A very simple parser is written to support code completion.
 | sv     | `service ServiceName {}`                       |
 | rpc    | `rpc MethodName (Request) returns (Response);` |
 
-### Google API Design Guide
+#### Google API Design Guide
 
 The following snippets are based on
 [Google API Design Guide](https://cloud.google.com/apis/design/).
@@ -138,13 +150,14 @@ The following snippets are based on
 | ------ | ------------------------------------------------------------------------- |
 | svgapi | [Standard Methods](https://cloud.google.com/apis/design/standard_methods) |
 
-## Code Formatting
+### Code Formatting
 
 Support "Format Document" if `clang-format` is in path, including custom `style` options.
 
 By default, `clang-format`'s standard coding style will be used for formatting. To define a custom style or use a supported preset add `"clang-format.style"` in VSCode Settings (`settings.json`)
 
-### Example usage:
+#### Example usage
+
 `"clang-format.style": "google"`
 
 This is the equivalent of executing `clang-format -style=google` from the shell.
@@ -155,17 +168,17 @@ With multiple formatting options
 
 For further formatting options refer to the [official `clang-format` documentation](https://clang.llvm.org/docs/ClangFormatStyleOptions.html)
 
-## Known Issues
+### Known Issues
 
-Auto-completion not works in some situations.
+Auto-completion does not work in some situations.
 
 Some users consistently see an error like `spawnsync clang-format enoent` when they save. This happens when the "formatOnSave"-setting is enabled in VSCode and "clang-format" cannot be found. To fix this:
 
-### On MacOS
+#### On MacOS
 
 1. Install clang-format on your system: `brew install clang-format`
 2. Install the `clang-format` plugin in VSCode
 
-## Release Notes
+### Release Notes
 
 See [CHANGELOG.md](CHANGELOG.md).
