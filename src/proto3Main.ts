@@ -13,6 +13,7 @@ import { Proto3Configuration } from './proto3Configuration';
 import { Proto3DocumentSymbolProvider } from './proto3SymbolProvider';
 import { Proto3RenameProvider } from './proto3Rename';
 import { Proto3RenumberCommand } from './proto3Renumber';
+import { Proto3HoverProvider } from './proto3Hover';
 
 export function activate(ctx: vscode.ExtensionContext): void {
   ctx.subscriptions.push(
@@ -25,6 +26,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
   );
   ctx.subscriptions.push(
     vscode.languages.registerDefinitionProvider(PROTO3_MODE, new Proto3DefinitionProvider())
+  );
+  ctx.subscriptions.push(
+    vscode.languages.registerHoverProvider(PROTO3_MODE, new Proto3HoverProvider())
   );
   ctx.subscriptions.push(
     vscode.languages.registerRenameProvider(PROTO3_MODE, new Proto3RenameProvider())
