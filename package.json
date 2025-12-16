@@ -19,10 +19,7 @@
     "Snippets"
   ],
   "activationEvents": [
-    "onLanguage:proto3",
-    "onCommand:proto3.compile.one",
-    "onCommand:proto3.compile.all",
-    "onCommand:proto3.renumber.scope"
+    "onLanguage:proto3"
   ],
   "main": "./out/src/proto3Main",
   "contributes": {

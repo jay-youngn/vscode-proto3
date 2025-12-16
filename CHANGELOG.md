@@ -1,5 +1,12 @@
 # Release Notes
 
+## 1.0.4
+
+- Added getMergedProtocolOptions() method - Merges configurations based on priorities:
+  - Current Workspace (.vscode/settings.json) — Highest Priority
+  - Workspace Level — Medium Priority
+  - User Global Settings — Lowest Priority
+
 ## 1.0.2 ~ 1.0.3
 
 - Add support for previewing proto definitions on hover.
