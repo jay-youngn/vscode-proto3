@@ -43,12 +43,84 @@ export class Proto3Configuration {
     return this.getProtocArgs().filter(arg => !arg.startsWith('-'));
   }
 
-  public getProtocOptions(): string[] {
-    return this.getProtocArgs();
+  /**
+   * Get merged protoc options from multiple configuration levels
+   * Priority order: Current workspace folder -> Workspace -> User settings
+   */
+  public getMergedProtocOptions(): string[] {
+    const mergedOptions: string[] = [];
+    const seenProtoPaths = new Set<string>();
+    const seenOtherOptions = new Set<string>();
+
+    // 1. Get current workspace folder configuration (highest priority)
+    const currentFolderConfig = this._config;
+    const currentOptions = this._configResolver.resolve(currentFolderConfig.get<string[]>('options', []));
+
+    // 2. Get workspace-level configuration (without specific folder)
+    const workspaceConfig = vscode.workspace.getConfiguration(this._configSection);
+    const workspaceOptions = this._configResolver.resolve(workspaceConfig.get<string[]>('options', []));
+
+    // 3. Process options in reverse priority order to avoid duplication
+    // Process user settings (implicitly handled by vscode API)
+    // Then workspace settings
+    this.processOptions(workspaceOptions, mergedOptions, seenProtoPaths, seenOtherOptions);
+
+    // Finally, current workspace folder settings (highest priority)
+    this.processOptions(currentOptions, mergedOptions, seenProtoPaths, seenOtherOptions);
+
+    return mergedOptions;
+  }
+
+  /**
+   * Process options and add them to merged list while avoiding duplicates
+   */
+  private processOptions(
+    options: string[],
+    mergedOptions: string[],
+    seenProtoPaths: Set<string>,
+    seenOtherOptions: Set<string>
+  ): void {
+    for (const option of options) {
+      if (this.isProtoPathOption(option)) {
+        const pathValue = this.extractProtoPathValue(option);
+        if (pathValue && !seenProtoPaths.has(pathValue)) {
+          mergedOptions.push(option);
+          seenProtoPaths.add(pathValue);
+        }
+      } else {
+        // For non-proto_path options, check exact duplicates
+        if (!seenOtherOptions.has(option)) {
+          mergedOptions.push(option);
+          seenOtherOptions.add(option);
+        }
+      }
+    }
+  }
+
+  /**
+   * Check if an option is a proto_path option
+   */
+  private isProtoPathOption(option: string): boolean {
+    return option.startsWith('--proto_path') || option.startsWith('-I');
+  }
+
+  /**
+   * Extract the path value from a proto_path option
+   */
+  private extractProtoPathValue(option: string): string | null {
+    if (option.startsWith('--proto_path=')) {
+      return option.substring('--proto_path='.length);
+    } else if (option.startsWith('-I') && option.length > 2) {
+      return option.substring(2);
+    } else if (option === '-I') {
+      // This case is handled in getProtoPathOptions where -I is separate from its path
+      return null;
+    }
+    return null;
   }
 
   public getProtoPathOptions(): string[] {
-    return this.getProtocOptions().filter(
+    return this.getMergedProtocOptions().filter(
       opt => opt.startsWith('--proto_path') || opt.startsWith('-I')
     );
   }
@@ -76,7 +148,7 @@ export class Proto3Configuration {
   }
 
   public getAllProtoPathsForImport(): string[] {
-    // Combine workspace root and protoc proto_path options
+    // Combine workspace root and merged protoc proto_path options
     const paths: string[] = [];
     const workspaceRoot = vscode.workspace.rootPath;
 
@@ -85,7 +157,7 @@ export class Proto3Configuration {
       paths.push(workspaceRoot);
     }
 
-    // Add paths from protoc options (--proto_path or -I)
+    // Add paths from merged protoc options (--proto_path or -I)
     const protoPathOptions = this.getProtoPathOptions();
     for (let i = 0; i < protoPathOptions.length; i++) {
       const option = protoPathOptions[i];

@@ -20,7 +20,7 @@ export class Proto3Compiler {
   }
 
   public compileAllProtos() {
-    const args = this._config.getProtocOptions();
+    const args = this._config.getMergedProtocOptions();
     // Compile in batch produces errors. Must be 1 by 1.
     this._config.getAllProtoPaths().forEach(proto => {
       this.runProtoc(args.concat(proto), undefined, (_stdout, stderr) => {
@@ -33,7 +33,7 @@ export class Proto3Compiler {
     const editor = vscode.window.activeTextEditor;
     if (editor && editor.document.languageId == 'proto3') {
       const fileName = editor.document.fileName;
-      const args = this._config.getProtocOptions().concat(fileName);
+      const args = this._config.getMergedProtocOptions().concat(fileName);
 
       this.runProtoc(args, undefined, (_stdout, stderr) => {
         vscode.window.showErrorMessage(stderr);
